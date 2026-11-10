@@ -42,6 +42,7 @@ try {
     if ($LASTEXITCODE) { throw "settings publish failed" }
 
     Copy-Item (Join-Path "$buildDirectory/$Configuration" "Atrium.exe") $dist
+    Copy-Item games.txt $dist
     if ($Development) { Set-Content -LiteralPath (Join-Path $dist 'development.txt') -Value 'Development distribution: does not register or change Windows startup.' }
     Copy-Item (Join-Path $PSScriptRoot "Uninstall.ps1") $dist
     Copy-Item LICENSE $dist

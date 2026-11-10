@@ -1,0 +1,5 @@
+# Full-screen game edge suppression.
+# Add one executable file name (or one complete executable path) per line.
+# Restart Atrium after editing this file.
+League of Legends.exe
+cs2.exe

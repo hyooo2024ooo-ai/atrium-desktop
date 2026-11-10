@@ -1,4 +1,6 @@
 #include "bar.h"
+
+#include "game_window.h"
 #include "render/continuous_corners.h"
 
 #include "clock.h"
@@ -1125,10 +1127,10 @@ void Bar::UpdateCover()
     const std::wstring& mode = settings_.autoHide;
     const bool foregroundCovers = ForegroundCoversScreen();
     const bool covered = mode == L"always" || (mode != L"never" && foregroundCovers);
-    // "always" remains a conventional auto-hidden bar. "fullscreen" is a
-    // presentation/game mode: while the foreground covers this monitor, do not
-    // let a pointer at the bottom edge put Atrium over it.
-    const bool suppressReveal = mode == L"fullscreen" && foregroundCovers;
+    // "always" remains a conventional auto-hidden bar. In "fullscreen", only
+    // a recognized game that fills the monitor owns the bottom edge; browsers
+    // and presentations retain normal pointer reveal.
+    const bool suppressReveal = mode == L"fullscreen" && IsFullscreenGame(GetForegroundWindow(), hmonitor_);
     if (covered == covered_ && suppressReveal == suppressReveal_)
         return;
     covered_ = covered;
@@ -1142,7 +1144,8 @@ void Bar::UpdateCover()
     wchar_t cls[64] = {};
     GetClassNameW(GetForegroundWindow(), cls, 64);
     if (mode == L"fullscreen")
-        Log(L"bar: %s (%s)", covered ? L"a maximized or full-screen app is in front: auto-hide" : L"no maximized or full-screen app in front", cls);
+        Log(L"bar: %s%s (%s)", covered ? L"a maximized or full-screen app is in front: auto-hide" : L"no maximized or full-screen app in front",
+            suppressReveal ? L", full-screen game: edge reveal suppressed" : L"", cls);
     else
         Log(L"bar: auto-hide %s (%s)", covered ? L"always" : L"never", mode.c_str());
     if (covered && !suppressReveal_)
