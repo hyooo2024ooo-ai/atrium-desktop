@@ -67,6 +67,36 @@ void ShowQuietly(HWND h) { ShowWindowAsync(h, SW_SHOWNOACTIVATE); }
 
 bool OnMonitor(HWND h, HMONITOR m) { return MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST) == m; }
 
+// A presentation or borderless/full-screen game on this monitor must own its
+// edges. Stage Manager normally lets the pointer reveal a covered strip; doing
+// that over a full-screen foreground window is disruptive and may also steal
+// input from games.
+bool ForegroundCoversMonitor(HMONITOR monitor)
+{
+    HWND window = GetForegroundWindow();
+    if (!window)
+        return false;
+    window = GetAncestor(window, GA_ROOT);
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    if (pid == GetCurrentProcessId() || IsIconic(window) || !IsWindowVisible(window) || !OnMonitor(window, monitor))
+        return false;
+    wchar_t cls[64]{};
+    GetClassNameW(window, cls, DWORD(_countof(cls)));
+    for (const wchar_t* shell : {L"Progman", L"WorkerW", L"Shell_TrayWnd", L"Shell_SecondaryTrayWnd"})
+        if (wcscmp(cls, shell) == 0)
+            return false;
+    BOOL cloaked = FALSE;
+    if (SUCCEEDED(DwmGetWindowAttribute(window, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked)
+        return false;
+    if (IsZoomed(window))
+        return true;
+    MONITORINFO info{sizeof(info)};
+    RECT bounds{};
+    return GetMonitorInfoW(monitor, &info) && GetWindowRect(window, &bounds) && bounds.left <= info.rcMonitor.left &&
+           bounds.top <= info.rcMonitor.top && bounds.right >= info.rcMonitor.right && bounds.bottom >= info.rcMonitor.bottom;
+}
+
 bool Has(const std::vector<std::wstring>& set, const std::wstring& key) { return std::find(set.begin(), set.end(), key) != set.end(); }
 
 bool AppsDark()
@@ -870,6 +900,15 @@ void StageManager::Watch()
         edgeSince_ = 0;
         if (leaving_.empty())
             Hide();
+        return;
+    }
+    // Do not allow the side edge to summon the strip over a full-screen game or
+    // presentation. The regular timer notices when foreground coverage ends and
+    // restores the configured always-visible/edge-peek behaviour automatically.
+    if (ForegroundCoversMonitor(monitor_ ? monitor_ : MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY))) {
+        peek_ = false;
+        edgeSince_ = leftAt_ = 0;
+        Hide();
         return;
     }
     const ULONGLONG now = GetTickCount64();

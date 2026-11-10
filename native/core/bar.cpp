@@ -1123,15 +1123,21 @@ void Bar::UpdateCover()
 {
     // The hide mode (autoHide): never, always, or while such an app is in front.
     const std::wstring& mode = settings_.autoHide;
-    bool covered = mode == L"always" || (mode != L"never" && ForegroundCoversScreen());
-    if (covered == covered_)
+    const bool foregroundCovers = ForegroundCoversScreen();
+    const bool covered = mode == L"always" || (mode != L"never" && foregroundCovers);
+    // "always" remains a conventional auto-hidden bar. "fullscreen" is a
+    // presentation/game mode: while the foreground covers this monitor, do not
+    // let a pointer at the bottom edge put Atrium over it.
+    const bool suppressReveal = mode == L"fullscreen" && foregroundCovers;
+    if (covered == covered_ && suppressReveal == suppressReveal_)
         return;
     covered_ = covered;
+    suppressReveal_ = suppressReveal;
     // Maximizing with the pointer on the bar keeps it up until the pointer leaves.
     POINT p{};
     GetCursorPos(&p);
     RECT bar = BarRect(), zone{bar.left, window_.top, bar.right, monitor_.bottom};
-    revealed_ = covered && !slidOut_ && PtInRect(&zone, p);
+    revealed_ = covered && !suppressReveal_ && !slidOut_ && PtInRect(&zone, p);
     leftAt_ = 0;
     wchar_t cls[64] = {};
     GetClassNameW(GetForegroundWindow(), cls, 64);
@@ -1139,7 +1145,7 @@ void Bar::UpdateCover()
         Log(L"bar: %s (%s)", covered ? L"a maximized or full-screen app is in front: auto-hide" : L"no maximized or full-screen app in front", cls);
     else
         Log(L"bar: auto-hide %s (%s)", covered ? L"always" : L"never", mode.c_str());
-    if (covered)
+    if (covered && !suppressReveal_)
         SetTimer(input_, kPointerTimer, kPointerMs, nullptr);
     else
         KillTimer(input_, kPointerTimer);
@@ -1173,8 +1179,13 @@ void Bar::UpdateAutoHide()
 
 void Bar::WatchPointer()
 {
-    if (!covered_) {
+    if (!covered_ || suppressReveal_) {
         KillTimer(input_, kPointerTimer);
+        if (revealed_) {
+            revealed_ = false;
+            leftAt_ = 0;
+            UpdateAutoHide();
+        }
         return;
     }
     POINT p{};

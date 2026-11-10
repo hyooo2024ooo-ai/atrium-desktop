@@ -202,8 +202,9 @@ private:
     HWINEVENTHOOK hooks_[3]{};
     // Auto-hide: `covered_` by a maximized or full-screen app, `revealed_` by
     // the pointer; `tucked_` slides the bar off the screen, after which its
-    // windows are hidden (`slidOut_`).
-    bool covered_ = false, revealed_ = false, tucked_ = false, slidOut_ = false;
+    // windows are hidden (`slidOut_`). In fullscreen mode, an actual covering
+    // foreground window suppresses edge reveal so games cannot summon the bar.
+    bool covered_ = false, suppressReveal_ = false, revealed_ = false, tucked_ = false, slidOut_ = false;
     ULONGLONG leftAt_ = 0; // when the pointer left a revealed bar
     std::map<HWND, std::pair<int, ULONGLONG>> raises_; // windows we were raised over: count, first time
     HWND lastCover_ = nullptr;
